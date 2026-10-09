@@ -19,7 +19,22 @@
 | **reg_wr_src** | select / out | 0 / 17 | Mux selects path 0 (ALU result) to feed back into register write data. |
 | **pc_src** | select / out | 0 / 0x0000000C | Mux selects path 0 (PC + 4) because no branching or jumping is taken. |
 
-### Think Block Response
 * **Where did the value on `data_mem.addr` come from?** The value comes directly from the output of the ALU (`alu.res`), which is hardwired to the address port of the data memory.
 * **Why is it harmless?** It is entirely harmless because `data_mem.wr_en` is `0` (disabled), meaning the memory controller will ignore the address and won't overwrite or corrupt any data.
 * **What is it costing the machine?** It incurs a dynamic power/energy cost. Even though data isn't saved, changing values on the address lines triggers charging and discharging of internal logic and capacitive busses inside the memory hardware block.
+## Step 4 — Trace Every Instruction Class
+
+| Instruction | Format | imm | op1 mux | op2 mux | alu.res | wb mux / pc mux |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `addi t0, zero, 12` | I-Type | 12 | 0 (reg) | 12 (imm) | 12 | 0 (ALU) / 0 (PC+4) |
+| `add t2, t0, t1` | R-Type | X | 12 (reg) | 5 (reg) | 17 | 0 (ALU) / 0 (PC+4) |
+| `lui t4, 0x2B` | U-Type | 0x2B000 | X | 0x2B000 (imm) | 0x2B000 | 0 (ALU) / 0 (PC+4) |
+| `auipc t5, 0x0` | U-Type | 0 | 0x00000014 (PC) | 0 (imm) | 0x00000014 | 0 (ALU) / 0 (PC+4) |
+| `lw a1, 0(a0)` | I-Type | 0 | 0x10000000 (reg) | 0 (imm) | 0x10000000 | 1 (DataMem) / 0 (PC+4) |
+| `sw t2, 4(a0)` | S-Type | 4 | 0x10000000 (reg) | 4 (imm) | 0x10000004 | X / 0 (PC+4) |
+| `beq t0, t1, skip` | B-Type | [offset] | 12 (reg) | 5 (reg) | [cmp] | X / 0 (PC+4) |
+| `bne t0, t1, target` | B-Type | [offset] | 12 (reg) | 5 (reg) | [cmp] | X / 1 (Branch Target) |
+| `jal ra, report` | J-Type | [offset] | 0x00000028 (PC) | [offset] (imm) | [target] | 2 (PC+4) / 1 (Jump Target) |
+| `jalr zero, ra, 0` | I-Type | 0 | 0x00000030 (reg) | 0 (imm) | [target] | X / 2 (ALU Target) |
+
+
