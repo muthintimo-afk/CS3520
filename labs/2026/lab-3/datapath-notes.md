@@ -17,3 +17,20 @@
 
 ### 4. Jumps return address restriction
 * **Analysis:** The return address (`PC + 4`) is supplied by input channel 2 of the write-back mux. Neither the ALU nor data memory can supply it because the ALU is fully occupied calculating the destination address (`PC + offset`), and data memory is idle.
+## Step 5 — Statistics Panel Analysis
+* **CPI Evaluation:** The CPI reported in the single-cycle processor panel is exactly `1.00`. 
+* **Design Sacrifice:** According to the CPU Performance Equation CPU Time= Instruction Count(IC)*CPI*CCT. Because every instruction must complete within a single cycle, the clock period is forced to be long enough to accommodate the absolute worst-case critical path (a load instruction `lw` traversing Instruction Memory, Register File, ALU, Data Memory, and Write-Back). This significantly lowers the maximum operational clock frequency.
+
+## Step 6 — Implementation vs. Textbook Diagram
+
+### Finding A: Absence of a Dedicated Branch Target Adder
+* **Observation:** The implementation does not feature a dedicated branch adder separate from the ALU.
+* **Engineering Justification:** The designer saved hardware area by routing the Program Counter (PC) value through **ALU operand mux 1** (`alu_op1_src`) and the branch offset through **ALU operand mux 2** (`alu_op2_src`). This allows the main ALU to compute the branch target address (\(PC + \text{offset}\)), eliminating an entire 32-bit adder block.
+
+### Finding B: Separate Hardware Comparison Unit
+* **Observation:** Instead of subtracting operands in the ALU and relying on a zero flag, a dedicated, separate comparison unit handles branch decisions.
+* **Engineering Justification:** A standard zero flag can only easily tell if two numbers are equal (via subtraction resulting in zero). Instructions like "less than" (`blt`, `bltu`) or "greater than or equal" (`bge`, `bgeu`) require signed and unsigned inequality evaluations. A dedicated comparison unit handles all these conditions directly, reducing critical path delay.
+
+### Finding C: Three-Input Write-Back Multiplexer
+* **Observation:** The `reg_wr_src` multiplexer has three inputs instead of the standard textbook two-input version.
+* **Engineering Justification:** The third input path feeds the sequential **PC + 4** address directly back to the register file. Unconditional jump instructions (`jal` and `jalr`) require this path to save the return address into the link register (`ra`) while the main ALU is simultaneously tied up calculating the target jumping address.
