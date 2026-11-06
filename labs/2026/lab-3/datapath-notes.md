@@ -18,19 +18,23 @@
 ### 4. Jumps return address restriction
 * **Analysis:** The return address (`PC + 4`) is supplied by input channel 2 of the write-back mux. Neither the ALU nor data memory can supply it because the ALU is fully occupied calculating the destination address (`PC + offset`), and data memory is idle.
 ## Step 5 — Statistics Panel Analysis
-* **CPI Evaluation:** The CPI reported in the single-cycle processor panel is exactly `1.00`. 
-* **Design Sacrifice:** According to the CPU Performance Equation CPU Time= Instruction Count(IC)*CPI*CCT. Because every instruction must complete within a single cycle, the clock period is forced to be long enough to accommodate the absolute worst-case critical path (a load instruction `lw` traversing Instruction Memory, Register File, ALU, Data Memory, and Write-Back). This significantly lowers the maximum operational clock frequency.
 
-## Step 6 — Implementation vs. Textbook Diagram
+- **CPI Evaluation:** The CPI reported in the single-cycle processor panel is exactly `1.00`.
+- **Design Sacrifice:** According to the CPU Performance Equation ($\text{CPU Time} = \text{Instruction Count (IC)} \times \text{CPI} \times \text{Clock Cycle Time (CCT)}$), because every instruction must complete within a single clock cycle, the clock period is forced to be long enough to accommodate the absolute worst-case critical path (a load instruction `lw` traversing Instruction Memory, Register File, ALU, Data Memory, and Write-Back). This significantly lowers the maximum operational clock frequency by a **factor of roughly 4x to 5x** compared to a pipelined or multi-cycle design where faster instructions do not have to wait for slow memory access stages.
 
-### Finding A: Absence of a Dedicated Branch Target Adder
-* **Observation:** The implementation does not feature a dedicated branch adder separate from the ALU.
-* **Engineering Justification:** The designer saved hardware area by routing the Program Counter (PC) value through **ALU operand mux 1** (`alu_op1_src`) and the branch offset through **ALU operand mux 2** (`alu_op2_src`). This allows the main ALU to compute the branch target address (\(PC + \text{offset}\)), eliminating an entire 32-bit adder block.
+---
 
-### Finding B: Separate Hardware Comparison Unit
-* **Observation:** Instead of subtracting operands in the ALU and relying on a zero flag, a dedicated, separate comparison unit handles branch decisions.
-* **Engineering Justification:** A standard zero flag can only easily tell if two numbers are equal (via subtraction resulting in zero). Instructions like "less than" (`blt`, `bltu`) or "greater than or equal" (`bge`, `bgeu`) require signed and unsigned inequality evaluations. A dedicated comparison unit handles all these conditions directly, reducing critical path delay.
+## Step 6 — Architectural Implementation Anomalies
 
-### Finding C: Three-Input Write-Back Multiplexer
-* **Observation:** The `reg_wr_src` multiplexer has three inputs instead of the standard textbook two-input version.
-* **Engineering Justification:** The third input path feeds the sequential **PC + 4** address directly back to the register file. Unconditional jump instructions (`jal` and `jalr`) require this path to save the return address into the link register (`ra`) while the main ALU is simultaneously tied up calculating the target jumping address.
+### Finding A: Shared ALU Target Computation
+- **What the Week 6 Figure Shows:** A dedicated branch adder, separate from the ALU, computing $PC + \text{offset}$.
+- **What to Look for in the Implementation:** There is no second adder. The implementation routes the Program Counter (PC) value straight into the primary ALU's first operand multiplexer (`alu_op1_src`). This allows the main ALU to handle branch target address calculations during control-flow execution cycles, reducing the raw transistor area on the physical silicon chip.
+
+### Finding B: Decoupled Logic Comparators
+- **What the Week 6 Figure Shows:** `beq` tested by the ALU's `Zero` output flag after a subtraction operation.
+- **What to Look for in the Implementation:** There is a separate comparison unit located right next to the register file output lines. This isolated hardware block can evaluate advanced conditional inequalities (like signed and unsigned boundary limits for `blt` and `bge`) without routing traffic down the main ALU, which is necessary for scaling up complex instruction sets efficiently.
+
+### Finding C: Expanded 3-Input Write-Back Mux
+- **What the Week 6 Figure Shows:** A standard two-input `MemtoReg` multiplexer selecting between ALU and memory data.
+- **What to Look for in the Implementation:** The write-back multiplexer (`reg_wr_src`) features three distinct input ports. The critical third input channel links directly to the sequential **PC Adder (`pc_4` out)** bus line. Unconditional link-and-jump operations (`jal` and `jalr`) depend completely on this third channel to write back the return recovery pointer ($PC + 4$) into the register file.
+
